@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>网盘链接自动转存服务 · 项目介绍</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg2: #161b22;
+    --card: #1c2128;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --blue: #58a6ff;
+    --green: #3fb950;
+    --orange: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --pink: #ff7b72;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.7; padding-bottom: 80px;
+  }
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+  /* ===== Hero ===== */
+  .hero {
+    background: linear-gradient(135deg, #1a2f4a 0%, #0d1117 60%);
+    border-bottom: 1px solid var(--border);
+    padding: 64px 0 48px; text-align: center;
+  }
+  .hero h1 { font-size: 34px; letter-spacing: 1px; }
+  .hero h1 .accent { color: var(--blue); }
+  .hero .subtitle { color: var(--muted); margin-top: 12px; font-size: 16px; }
+  .hero .tags { margin-top: 20px; }
+  .tag {
+    display: inline-block; margin: 4px; padding: 4px 14px;
+    border: 1px solid var(--border); border-radius: 20px;
+    font-size: 13px; color: var(--muted); background: var(--bg2);
+  }
+  .tag.b { color: var(--blue); border-color: #1f4a75; }
+  .tag.g { color: var(--green); border-color: #1f4a2f; }
+  .tag.p { color: var(--purple); border-color: #4a2f75; }
+
+  /* ===== Sections ===== */
+  section { margin-top: 56px; }
+  h2 {
+    font-size: 22px; margin-bottom: 8px; display: flex; align-items: center; gap: 10px;
+  }
+  h2 .num {
+    background: var(--blue); color: #fff; font-size: 13px;
+    width: 26px; height: 26px; border-radius: 6px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .section-desc { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 24px;
+  }
+
+  /* ===== 流程图 ===== */
+  .flow { display: flex; flex-direction: column; gap: 0; align-items: center; }
+  .flow-row { display: flex; gap: 0; align-items: stretch; width: 100%; justify-content: center; flex-wrap: wrap; }
+  .fbox {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 18px; min-width: 170px; text-align: center; position: relative;
+  }
+  .fbox .icon { font-size: 24px; }
+  .fbox .title { font-weight: 600; margin-top: 4px; }
+  .fbox .desc { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .fbox.local { border-color: #1f4a75; }
+  .fbox.local .title { color: var(--blue); }
+  .fbox.cloud { border-color: #4a2f75; }
+  .fbox.cloud .title { color: var(--purple); }
+  .fbox.quark { border-color: #2f4a1f; }
+  .fbox.quark .title { color: var(--green); }
+  .arrow-down {
+    text-align: center; color: var(--muted); font-size: 20px; padding: 6px 0;
+  }
+  .arrow-down .label { font-size: 12px; color: var(--blue); vertical-align: middle; margin-left: 6px; }
+  .arrow-right {
+    align-self: center; color: var(--muted); font-size: 20px; padding: 0 8px;
+  }
+
+  /* ===== 步骤 ===== */
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+  .step {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; position: relative;
+  }
+  .step .step-num {
+    position: absolute; top: -12px; left: 20px;
+    background: var(--blue); color: #fff; font-size: 12px; font-weight: 700;
+    padding: 2px 10px; border-radius: 10px;
+  }
+  .step h3 { font-size: 16px; margin: 10px 0 8px; }
+  .step p { font-size: 13px; color: var(--muted); }
+  .step .tech {
+    margin-top: 10px; font-size: 12px; color: var(--blue);
+    background: #11213a; border-radius: 6px; padding: 6px 10px;
+    font-family: "SF Mono", Menlo, monospace;
+  }
+
+  /* ===== 表格 ===== */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; }
+  tr:hover td { background: rgba(88,166,255,0.04); }
+  .pill {
+    display: inline-block; padding: 1px 10px; border-radius: 10px; font-size: 12px;
+  }
+  .pill.red { background: #3a1d1d; color: var(--red); }
+  .pill.green { background: #1d3a1d; color: var(--green); }
+  .pill.blue { background: #1d2a3a; color: var(--blue); }
+  .pill.orange { background: #3a2d1d; color: var(--orange); }
+  code {
+    font-family: "SF Mono", Menlo, monospace; font-size: 12.5px;
+    background: var(--bg2); padding: 2px 6px; border-radius: 4px; color: var(--pink);
+  }
+
+  /* ===== 对比卡 ===== */
+  .versus { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .versus { grid-template-columns: 1fr; } }
+  .v-card { border-radius: 12px; padding: 20px; border: 1px solid var(--border); }
+  .v-card.bad { background: #2a1416; border-color: #5c2323; }
+  .v-card.good { background: #12211a; border-color: #1f5c38; }
+  .v-card h4 { font-size: 15px; margin-bottom: 10px; }
+  .v-card.bad h4 { color: var(--red); }
+  .v-card.good h4 { color: var(--green); }
+  .v-card ul { list-style: none; }
+  .v-card li { font-size: 13px; padding: 4px 0; color: var(--muted); }
+  .v-card li::before { content: "✗ "; color: var(--red); }
+  .v-card.good li::before { content: "✓ "; color: var(--green); }
+
+  /* ===== 统计 ===== */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
+  .stat {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; text-align: center;
+  }
+  .stat .num { font-size: 28px; font-weight: 700; color: var(--blue); }
+  .stat .label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+  /* ===== 文件树 ===== */
+  .filetree {
+    font-family: "SF Mono", Menlo, monospace; font-size: 13px;
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px 24px; line-height: 1.9; overflow-x: auto;
+  }
+  .filetree .dir { color: var(--blue); }
+  .filetree .comment { color: var(--muted); }
+
+  .footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 64px; }
+  a { color: var(--blue); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="container">
+    <h1>🌐 网盘链接自动转存服务</h1>
+    <div class="subtitle">全网搜到的夸克分享链接 → 自动转存到自己网盘 → 生成自己的分享链接 → 网站详情页展示赚转存收益</div>
+    <div class="tags">
+      <span class="tag b">Python + Playwright</span>
+      <span class="tag b">夸克 REST API</span>
+      <span class="tag g">CDP 真 Chrome</span>
+      <span class="tag">可信事件 UI 自动化</span>
+      <span class="tag p">Docker MySQL + 线上库同步</span>
+      <span class="tag g">✅ 已验证全链路</span>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ================================================================ -->
+<section>
+  <h2><span class="num">1</span>系统架构总览</h2>
+  <p class="section-desc">本地 Mac 负责搜索、转存、分享；线上库只接收最终结果。两层解耦，网站零改动。</p>
+  <div class="card">
+    <div class="flow">
+      <div class="flow-row">
+        <div class="fbox local"><div class="icon">🎬</div><div class="title">影片任务队列</div><div class="desc">MySQL · 5450 部<br>院线优先级排序</div></div>
+        <div class="fbox local"><div class="icon">🔍</div><div class="title">PanSou 多源搜索</div><div class="desc">远程TG → 插件 → 本地<br>自动降级 · 相关性过滤</div></div>
+      </div>
+      <div class="arrow-down">⬇ <span class="label">有效夸克分享链接</span></div>
+      <div class="flow-row">
+        <div class="fbox quark"><div class="icon">📦</div><div class="title">夸克 API 转存</div><div class="desc">stoken → 列文件 → 保存<br>失效自动换下一条</div></div>
+        <div class="arrow-right">→</div>
+        <div class="fbox quark"><div class="icon">☁️</div><div class="title">我的网盘</div><div class="desc">easysvip.com 文件夹<br>26TB 空间</div></div>
+        <div class="arrow-right">→</div>
+        <div class="fbox local"><div class="icon">🖥️</div><div class="title">CDP 真 Chrome</div><div class="title" style="font-weight:400;font-size:12px;color:var(--orange)">可信鼠标事件 UI 分享</div></div>
+      </div>
+      <div class="arrow-down">⬇ <span class="label">自己的分享链接（12位短码）</span></div>
+      <div class="flow-row">
+        <div class="fbox local"><div class="icon">🗄️</div><div class="title">本地 MySQL</div><div class="desc">mac_vod_netdisk<br>任务状态追踪</div></div>
+        <div class="arrow-right">→</div>
+        <div class="fbox cloud"><div class="icon">🌐</div><div class="title">线上生产库</div><div class="desc">mac_vod_netdisk<br>实时幂等同步</div></div>
+        <div class="arrow-right">→</div>
+        <div class="fbox cloud"><div class="icon">📱</div><div class="title">网站详情页</div><div class="desc">get_my_netdisk<br>优先展示自己的链接</div></div>
+      </div>
+      <div class="arrow-down">⬇ <span class="label">用户转存 → 推广收益 💰</span></div>
+      <div class="flow-row">
+        <div class="fbox cloud"><div class="icon">🔄</div><div class="title">审计巡检（自愈闭环）</div><div class="desc">每轮匿名验证分享存活<br>被拦自动重置重分享</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<section>
+  <h2><span class="num">2</span>单部影片处理流程</h2>
+  <p class="section-desc">每条任务经历 7 个环节，任何环节失败都有对应的兜底策略，不重复转存、不浪费配额。</p>
+  <div class="steps">
+    <div class="step"><span class="step-num">STEP 1</span>
+      <h3>院线优先级排序</h3>
+      <p>从 mac_vod 按上映日期提取当年院线电影，中国大陆 P300 &gt; 海外 P200 &gt; 其他 P100，最近上映排最前，游戏/体育/纪录片杂质降级 P10。</p>
+      <div class="tech">ORDER BY priority DESC, release_date DESC</div>
+    </div>
+    <div class="step"><span class="step-num">STEP 2</span>
+      <h3>多源搜索 + 相关性过滤</h3>
+      <p>so.252035.xyz TG源 → so.easysvip.com → 本地Docker，逐级降级。剔除"头像合集"等不相关结果。</p>
+      <div class="tech">polling + fallback × 5 endpoints</div>
+    </div>
+    <div class="step"><span class="step-num">STEP 3</span>
+      <h3>API 转存</h3>
+      <p>sharepage/token → detail → save → 轮询 task。提取码错误、链接失效、分享者封禁自动换下一条（最多5条）。转存后立即记录 fid。</p>
+      <div class="tech">quark_api.transfer_and_share(skip_share=True)</div>
+    </div>
+    <div class="step"><span class="step-num">STEP 4</span>
+      <h3>可信 UI 分享</h3>
+      <p>CDP 接管真 Chrome，拟人鼠标轨迹（贝塞尔移动+抖动+按下延迟）完整驱动 UI：勾选文件 → 分享 → 创建分享 → 读弹窗短链。</p>
+      <div class="tech">browser_share.create_share_via_trusted_ui()</div>
+    </div>
+    <div class="step"><span class="step-num">STEP 5</span>
+      <h3>双库写入 + 实时同步</h3>
+      <p>先写本地 mac_vod_netdisk（每个 vod_id 一行），再幂等直写线上库。线上同步失败由 sync_push.py 按游标补偿。</p>
+      <div class="tech">INSERT ... WHERE NOT EXISTS（幂等）</div>
+    </div>
+    <div class="step"><span class="step-num">STEP 6</span>
+      <h3>审计巡检自愈</h3>
+      <p>每轮开始匿名访客视角验证全部已完成分享。被夸克内容审核下架的 → 清除线上死链 → 重置任务 → 可信UI补分享。</p>
+      <div class="tech">audit_and_reset_completed()</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<section>
+  <h2><span class="num">3</span>踩坑记录：夸克风控攻防</h2>
+  <p class="section-desc">本项目 80% 的难度在夸克的风控体系。以下是全部踩过的坑与最终解法。</p>
+
+  <div class="card">
+    <table>
+      <tr><th>风控手段</th><th>现象</th><th>错误定位</th><th>最终解法</th></tr>
+      <tr>
+        <td><span class="pill red">TLS 指纹</span></td>
+        <td>aiohttp 创建的分享全部被审计下架（401 加密挑战体）</td>
+        <td>POST /share 返回 401，Body 为 <code>AATFelIx...</code> 加密串</td>
+        <td><span class="pill green">分享环节改用 CDP 真 Chrome</span></td>
+      </tr>
+      <tr>
+        <td><span class="pill red">合成事件检测</span></td>
+        <td>页面上下文 fetch、JS el.click() 创建的分享同样被下架</td>
+        <td>对比实验：真鼠标创建存活，程序创建全部死亡</td>
+        <td><span class="pill green">Playwright page.mouse 可信事件 + 拟人轨迹</span></td>
+      </tr>
+      <tr>
+        <td><span class="pill red">内容审计</span></td>
+        <td>分享创建成功但几小时内被下架，访客看到"文件已被分享者删除"</td>
+        <td>分享列表 audit_status=4</td>
+        <td><span class="pill green">每轮匿名审计巡检 + 死链自动重置重分享</span></td>
+      </tr>
+      <tr>
+        <td><span class="pill orange">混淆文件名</span></td>
+        <td>分享者命名 <code>南z京z照z相z馆</code>、<code>B-捕-FENG-追-YING</code>，名称去重失效导致重复转存</td>
+        <td>网盘出现大量 (1)(2) 副本</td>
+        <td><span class="pill blue">转存时记录 fid + CJK 字符提取模糊匹配</span></td>
+      </tr>
+      <tr>
+        <td><span class="pill orange">无头浏览器检测</span></td>
+        <td>headless 模式下分享页 iframe 永远骨架屏</td>
+        <td>断点调试 iframe 内容加载</td>
+        <td><span class="pill blue">headless=False + 反检测脚本注入</span></td>
+      </tr>
+      <tr>
+        <td><span class="pill orange">Cookie 轮换</span></td>
+        <td>转存接口响应轮换 <code>__puus</code>，静态 Cookie 头渐渐失效</td>
+        <td>响应 Set-Cookie 监测</td>
+        <td><span class="pill blue">手动捕获 Set-Cookie 更新请求头</span></td>
+      </tr>
+      <tr>
+        <td><span class="pill orange">搜索噪音</span></td>
+        <td>PanSou 返回"头像合集"等无关内容被误转存</td>
+        <td>网盘出现垃圾文件夹</td>
+        <td><span class="pill blue">影片名 CJK 相关性过滤</span></td>
+      </tr>
+      <tr>
+        <td><span class="pill orange">链接时效</span></td>
+        <td>分享者封禁 / 取消分享 / 链接失效混杂</td>
+        <td>stoken 接口错误信息分类</td>
+        <td><span class="pill blue">逐条轮换，失效类型精确入库</span></td>
+      </tr>
+    </table>
+  </div>
+
+  <h2 style="margin-top:40px"><span class="num">⚔</span>关键对照实验：什么创建方式能活？</h2>
+  <p class="section-desc">同一账号、同一文件、同一时段的三组对照 —— 只有真实输入管线的事件存活。</p>
+  <div class="versus">
+    <div class="v-card bad">
+      <h4>❌ 被审计拦截的创建方式</h4>
+      <ul>
+        <li>aiohttp 裸 API（即使带全套浏览器指纹头）</li>
+        <li>CDP 页面上下文 fetch（真实 Chrome 会话）</li>
+        <li>JS el.click() 驱动 UI（isTrusted=false）</li>
+        <li>headless 浏览器任何操作</li>
+      </ul>
+    </div>
+    <div class="v-card good">
+      <h4>✅ 存活的创建方式</h4>
+      <ul>
+        <li>CDP 接管真 Chrome（isTrusted=true）</li>
+        <li>拟人鼠标轨迹：分段移动 + 抖动 + 按下延迟</li>
+        <li>完整 UI 流程：勾选 → 分享 → 创建分享</li>
+        <li>弹窗读取 12 位短码链接（pwd_id）</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<section>
+  <h2><span class="num">4</span>数据模型</h2>
+  <p class="section-desc">本地与线上同构。任务表驱动全流程，映射表支持一部影片对应多个采集站 vod_id。</p>
+  <div class="card">
+    <table>
+      <tr><th>表</th><th>位置</th><th>职责</th><th>关键字段</th></tr>
+      <tr><td><code>quark_transfer</code></td><td>本地</td><td>转存任务（每部影片一条）</td><td>priority · release_date · quark_fid · my_url · status</td></tr>
+      <tr><td><code>quark_link_vod</code></td><td>本地</td><td>链接 ↔ vod_id 一对多映射</td><td>transfer_id · vod_id</td></tr>
+      <tr><td><code>mac_vod_netdisk</code></td><td>本地 + 线上</td><td>网盘资源（网站读取的表）</td><td>vod_id · type · share_url · pwd · quality</td></tr>
+      <tr><td><code>cloud_accounts</code></td><td>本地</td><td>网盘账号池（多账号扩展位）</td><td>disk_type · phone · cookie · status</td></tr>
+    </table>
+    <p style="font-size:13px; color:var(--muted); margin-top:14px">
+      任务状态机：<span class="pill blue">0 待处理</span> →
+      <span class="pill orange">2 已转存</span> /
+      <span class="pill orange">5 待补分享</span> →
+      <span class="pill green">3 已分享入库</span>；
+      <span class="pill red">4 无资源</span>（3次搜索无果）
+    </p>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<section>
+  <h2><span class="num">5</span>运行参数与吞吐</h2>
+  <div class="stats">
+    <div class="stat"><div class="num">5,450</div><div class="label">任务总量（今年电影）</div></div>
+    <div class="stat"><div class="num">40</div><div class="label">P300 近60天院线</div></div>
+    <div class="stat"><div class="num">5 条/轮</div><div class="label">冷却 30-40 分钟</div></div>
+    <div class="stat"><div class="num">~150/天</div><div class="label">处理吞吐</div></div>
+    <div class="stat"><div class="num">16-22s</div><div class="label">单条分享耗时</div></div>
+    <div class="stat"><div class="num">100%</div><div class="label">分享存活率（可信UI）</div></div>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <table>
+      <tr><th>参数</th><th>值</th><th>说明</th></tr>
+      <tr><td>每日转存上限</td><td>夸克 50 / 百度 30</td><td>按账号计，多账号可线性扩展</td></tr>
+      <tr><td>转存间隔</td><td>30-90 秒随机</td><td>降低频率风控</td></tr>
+      <tr><td>连续休息</td><td>10 次后强制 5-10 分钟</td><td>防连续高频</td></tr>
+      <tr><td>链接尝试</td><td>每任务最多 5 条</td><td>失效自动轮换</td></tr>
+      <tr><td>重试策略</td><td>try_count &lt; 5</td><td>分享类失败不消耗次数</td></tr>
+      <tr><td>审计巡检</td><td>每轮一次</td><td>匿名验证 + 死链自愈</td></tr>
+      <tr><td>重试策略</td><td>分层</td><td>已转存待分享任务不限次数；链接失效换条；搜索无果3轮止</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<section>
+  <h2><span class="num">6</span>项目结构</h2>
+  <div class="filetree">
+<span class="dir">cloud_save_service/</span><br>
+├── ├── <span class="dir">batch_runner.py</span>      <span class="comment"># 常驻运行器（探针 + 审计巡检 + 分轮调度）</span><br>
+├── <span class="dir">task_flow.py</span>         <span class="comment"># 单任务流程（搜索→转存→分享→入库）</span><br>
+├── <span class="dir">quark_api.py</span>         <span class="comment"># 夸克 REST API 客户端（stoken/转存/任务轮询）</span><br>
+├── <span class="dir">browser_share.py</span>     <span class="comment"># ★ 可信事件 UI 分享（核心突破）</span><br>
+├── <span class="dir">pansou_client.py</span>     <span class="comment"># 多端点搜索 + 降级 + 轮询</span><br>
+├── <span class="dir">anti_detect.py</span>       <span class="comment"># 反检测（随机延迟/每日上限/强制休息）</span><br>
+├── <span class="dir">db.py</span>                <span class="comment"># 数据库操作</span><br>
+├── <span class="dir">sync_push.py</span>        <span class="comment"># 本地→线上增量同步（游标断点续传）</span><br>
+├── <span class="dir">reconcile.py</span>        <span class="comment"># 分享对账（401 已创建但响应被拦的找回）</span><br>
+├── <span class="dir">cleanup_dups.py</span>     <span class="comment"># 网盘重复文件清理</span><br>
+├── <span class="dir">db_watchdog.py</span>      <span class="comment"># 数据库看门狗</span><br>
+├── <span class="dir">extract_cookies.py</span>  <span class="comment"># Chrome Cookie 提取</span><br>
+├── <span class="dir">init_db.py</span>          <span class="comment"># 建表脚本</span><br>
+├── <span class="dir">config.py</span>           <span class="comment"># 全部配置</span><br>
+├── <span class="dir">db_online.ini</span>       <span class="comment"># 线上库连接信息</span><br>
+├── <span class="dir">db_online.ini</span>       <span class="comment"># 线上库连接（gitignore，不入库）</span><br>
+├── <span class="dir">reports/</span>            <span class="comment"># 每日转存报告（自动生成）</span><br>
+├── <span class="dir">browser_data/</span>       <span class="comment"># Cookie 持久化</span><br>
+└── <span class="dir">screenshots/</span>        <span class="comment"># 调试截图</span>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<section>
+  <h2><span class="num">7</span>业务价值闭环</h2>
+  <div class="card">
+    <table>
+      <tr><th>角色</th><th>动作</th><th>收益</th></tr>
+      <tr><td>用户访问详情页</td><td>优先看到自己的夸克链接（无链接时降级全网搜）</td><td>—</td></tr>
+      <tr><td>用户点击转存</td><td>从我的分享链接保存到他的网盘</td><td><span class="pill green">产生推广分成 💰</span></td></tr>
+      <tr><td>系统持续运行</td><td>新片自动采集 → 转存 → 分享 → 上架</td><td>链接库持续扩大</td></tr>
+    </table>
+  </div>
+</section>
+
+<div class="footer">
+  网盘链接自动转存服务 · Python 3.14 + Playwright + MySQL 8.0 · 2026<br>
+  <span style="font-size:12px">仅供学习研究，请遵守各网盘平台服务条款</span>
+</div>
+
+</div>
+</body>
+</html>

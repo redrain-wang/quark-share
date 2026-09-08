@@ -1,0 +1,6 @@
+playwright>=1.40.0
+PyMySQL>=1.1.0
+aiomysql>=0.2.0
+aiohttp>=3.9.0
+yarl
+browser_cookie3>=0.16.0

@@ -1,0 +1,16 @@
+# 本地数据与敏感文件（不入库）
+db_online.ini
+browser_data/
+screenshots/
+reports/
+*.log
+.sync_state
+.DS_Store
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# 环境变量
+.env
