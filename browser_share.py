@@ -42,6 +42,16 @@ def is_cdp_alive(timeout: float = 3) -> bool:
         return False
 
 
+def kill_cdp_chrome():
+    """强杀 CDP Chrome 实例（冻结/无响应时用）"""
+    import subprocess
+    subprocess.run(
+        ["pkill", "-9", "-f", f"user-data-dir={CDP_PROFILE_DIR}"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    time.sleep(3)
+
+
 def ensure_cdp_chrome():
     """确保 CDP Chrome 实例运行（不存在则复制登录配置启动）"""
     if is_cdp_alive():
@@ -260,8 +270,30 @@ async def create_share_via_trusted_ui(file_names: list[str]) -> dict:
     start = time.time()
 
     try:
-        browser = await pw.chromium.connect_over_cdp(CDP_URL)
+        # 连接 CDP（冻结的 Chrome 会卡住连接，超时则重启实例重试一次）
+        browser = None
+        for attempt in range(2):
+            try:
+                browser = await asyncio.wait_for(
+                    pw.chromium.connect_over_cdp(CDP_URL), timeout=45
+                )
+                break
+            except (asyncio.TimeoutError, Exception) as e:
+                if attempt == 0:
+                    logger.warning(f"[BrowserShare] CDP 连接失败({str(e)[:60]})，重启 Chrome 重试...")
+                    kill_cdp_chrome()
+                    ensure_cdp_chrome()
+                else:
+                    raise BrowserShareError(f"CDP 连接失败: {e}")
         context = browser.contexts[0]
+        # 清理残留空白页（历史运行堆积，拖慢实例）
+        try:
+            stale = [p for p in context.pages
+                     if p != context.pages[0] and "pan.quark.cn" not in (p.url or "")]
+            for p in stale[:10]:
+                await p.close()
+        except Exception:
+            pass
 
         # 每次全新打开页面，避免残留选中/弹窗状态
         page = await context.new_page()

@@ -452,6 +452,28 @@ class QuarkAPI:
         data = await self._request("GET", url, params=params)
         return data.get("data", {}).get("list", [])
 
+    async def find_share_by_fid(self, fids: list[str]) -> dict | None:
+        """
+        按文件 fid 查找已有存活分享（分享列表的 first_fid 字段精确匹配）。
+        fid 级去重：分享前先查，同一文件绝不重复创建分享。
+        """
+        try:
+            shares = await self.list_my_shares()
+        except Exception:
+            return None
+        fid_set = set(fids)
+        for sh in shares:
+            if sh.get("status") != 1:
+                continue
+            if sh.get("first_fid") in fid_set:
+                return {
+                    # 分享列表自带短链（pwd_id）
+                    "url": sh.get("share_url") or f"{SHARE_PAGE}/s/{sh.get('share_id')}",
+                    "passcode": sh.get("passcode", "") or "",
+                    "share_id": sh.get("share_id", ""),
+                }
+        return None
+
     async def find_share_by_name(self, name: str) -> dict | None:
         """
         按影片名模糊匹配已有分享（分享标题 = 转存文件夹名）。

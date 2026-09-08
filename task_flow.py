@@ -260,6 +260,11 @@ async def _create_share_via_browser(api: QuarkAPI, folder_fid: str, fids: list[s
     失败时尝试从分享列表恢复。
     """
     try:
+        # fid 级去重：该文件已有存活分享 → 直接复用，绝不重复创建
+        existing = await api.find_share_by_fid(fids)
+        if existing:
+            logger.info(f"[浏览器分享] fid 已有存活分享，直接复用: {existing['url']}")
+            return existing
         # fid → 显示名
         files = await api.list_folder_files(folder_fid)
         fid_map = {f["fid"]: f["file_name"] for f in files}
