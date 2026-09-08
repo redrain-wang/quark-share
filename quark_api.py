@@ -371,17 +371,19 @@ class QuarkAPI:
             return None
 
         # 优先精确的 CJK 匹配，其次归一化匹配
+        # ⚠️ 双方都必须非空且达到最小长度，否则空串 in 任何串恒为 True
+        #    （曾导致纯英文文件名 NIANHUI 匹配所有中文影片）
         for f in files:
             fname = f.get("file_name", "")
             fc = cjk_only(fname)
-            if target_cjk and len(target_cjk) >= 3 and (
+            if target_cjk and fc and len(target_cjk) >= 3 and len(fc) >= 3 and (
                 target_cjk in fc or fc in target_cjk
             ):
                 return {"fid": f["fid"], "file_name": fname, "dir": f.get("dir")}
         for f in files:
             fname = f.get("file_name", "")
             fn = normalize(fname)
-            if target_norm and len(target_norm) >= 4 and (
+            if target_norm and fn and len(target_norm) >= 4 and len(fn) >= 4 and (
                 target_norm in fn or fn in target_norm
             ):
                 return {"fid": f["fid"], "file_name": fname, "dir": f.get("dir")}
@@ -474,7 +476,11 @@ class QuarkAPI:
             if sh.get("status") != 1:
                 continue
             title = sh.get("title") or ""
-            if target and (target in normalize(title) or normalize(title) in target):
+            ntitle = normalize(title)
+            # 双方非空且达到最小长度才做包含匹配（防空串恒真）
+            if target and ntitle and len(target) >= 3 and len(ntitle) >= 3 and (
+                target in ntitle or ntitle in target
+            ):
                 candidates.append(sh)
 
         # 逐个校验有效性，返回第一个活着的分享
