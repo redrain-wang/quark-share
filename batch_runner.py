@@ -24,6 +24,7 @@ from config import DB_CONFIG
 import aiomysql
 import browser_share
 import daily_report
+import public_page
 
 logging.basicConfig(
     level=logging.INFO,
@@ -161,11 +162,15 @@ async def main():
             remaining = await get_pending_tasks(limit=100000)
             logger.info(f"[第{round_no}轮] 完成，剩余 {len(remaining)} 条")
 
-            # 每轮结束更新转存报告
+            # 每轮结束更新转存报告 + 公开汇总页
             try:
                 await asyncio.to_thread(daily_report.main)
             except Exception as e:
                 logger.warning(f"日报生成失败: {e}")
+            try:
+                await asyncio.to_thread(public_page.main)
+            except Exception as e:
+                logger.warning(f"公开页生成失败: {e}")
 
             # 自适应冷却：审计发现被拦分享 → 冷却加倍（降速保护账号）
             cd = random.randint(*ROUND_COOLDOWN)
