@@ -26,6 +26,9 @@ import browser_share
 import daily_report
 import public_page
 import push_site_page
+import discover_new
+import traffic_report
+import backup_db
 
 logging.basicConfig(
     level=logging.INFO,
@@ -162,6 +165,15 @@ async def main():
 
             remaining = await get_pending_tasks(limit=100000)
             logger.info(f"[第{round_no}轮] 完成，剩余 {len(remaining)} 条")
+
+            # 每日任务：新片发现 / 流量报告 / 数据库备份（各脚本自带日期去重）
+            for daily_fn, label in ((discover_new.main, "新片发现"),
+                                    (traffic_report.main, "流量报告"),
+                                    (backup_db.main, "数据库备份")):
+                try:
+                    await asyncio.to_thread(daily_fn)
+                except Exception as e:
+                    logger.warning(f"{label}失败: {e}")
 
             # 每轮结束更新转存报告 + 公开汇总页
             try:

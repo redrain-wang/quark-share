@@ -75,6 +75,7 @@ def render_html(movies: list[dict]) -> str:
     import json
     data = [
         {"n": m["name"], "y": (m["year"] or "更早")[:4], "u": m["url"],
+         "v": m["vod_ids"][0],
          "d": "https://easysvip.com/index.php/vod/detail/id/%d.html" % m["vod_ids"][0]}
         for m in movies
     ]
@@ -194,6 +195,17 @@ const DATA = {json.dumps(data, ensure_ascii=False)};
 let curYear = 'all', curKw = '', shown = 50;
 const PAGE = 50;
 
+function trackClick(vodId, url) {{
+  try {{
+    const data = JSON.stringify({{vod_id: vodId, share_url: url}});
+    if (navigator.sendBeacon) {{
+      navigator.sendBeacon('https://easysvip.com/netdisk_click.php', new Blob([data], {{type: 'application/json'}}));
+    }} else {{
+      fetch('https://easysvip.com/netdisk_click.php', {{method: 'POST', body: data, keepalive: true}});
+    }}
+  }} catch (e) {{}}
+}}
+
 function render() {{
   const list = document.getElementById('list');
   const kw = curKw.trim().toLowerCase();
@@ -213,7 +225,8 @@ function render() {{
         <div class="sub">${{m.y}} 年 · 夸克网盘</div>
       </div>
       <div class="actions">
-        <a class="btn quark" href="${{m.u}}" target="_blank" rel="nofollow">💾 夸克网盘转存</a>
+        <a class="btn quark" href="${{m.u}}" target="_blank" rel="nofollow"
+           onclick="trackClick(${{m.v}}, '${{m.u}}')">💾 夸克网盘转存</a>
         <a class="btn detail" href="${{m.d}}" target="_blank">详情</a>
       </div>
     </div>`).join('');

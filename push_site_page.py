@@ -4,7 +4,7 @@
 流程：
 1. 复制 reports/网盘资源汇总.html → 网站根目录 netdisk.html
 2. 在网站仓库提交并推送到当前分支（release）
-   服务器定时 git pull 即可上线：https://easysvip.com/netdisk.html
+   服务器定时 git pull 即可上线：https://easysvip.com/netdisk_share.html
 
 用法：python push_site_page.py
 """
@@ -47,9 +47,17 @@ def main() -> bool:
     committed = run(["git", "commit", "-m",
                      "update: 网盘资源汇总页自动更新"], cwd=SITE_DIR)
     if committed:
+        # 先拉取远程（其他人/服务器可能有新提交），变基后再推
+        run(["git", "pull", "--rebase", "origin", "release"], cwd=SITE_DIR)
         ok = run(["git", "push", "origin", "release"], cwd=SITE_DIR)
         if ok:
             print("  ✅ 已推送 release 分支（服务器拉取后上线）")
+        else:
+            # 推送失败（远程又更新）→ 再尝试一次
+            run(["git", "pull", "--rebase", "origin", "release"], cwd=SITE_DIR)
+            ok = run(["git", "push", "origin", "release"], cwd=SITE_DIR)
+            if ok:
+                print("  ✅ 重试后推送成功")
     else:
         print("  页面无变化，跳过推送")
     return ok
