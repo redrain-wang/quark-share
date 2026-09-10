@@ -17,6 +17,8 @@ BASE_DIR = Path(__file__).parent
 SOURCE_HTML = BASE_DIR / "reports" / "网盘资源汇总.html"
 SITE_DIR = Path.home() / "Documents" / "easysvip"
 TARGET = SITE_DIR / "netdisk_share.html"
+SITEMAP_SRC = BASE_DIR / "reports" / "sitemap_netdisk.xml"
+SITEMAP_DST = SITE_DIR / "sitemap_netdisk.xml"
 
 
 def run(cmd: list[str], cwd: Path | None = None) -> bool:
@@ -38,10 +40,12 @@ def main() -> bool:
 
     # 1. 复制到网站根目录
     shutil.copy(SOURCE_HTML, TARGET)
+    if SITEMAP_SRC.exists():
+        shutil.copy(SITEMAP_SRC, SITEMAP_DST)
 
     # 2. 提交推送（只提交 netdisk.html，不动仓库里其他文件）
     ok = True
-    if not run(["git", "add", "netdisk_share.html"], cwd=SITE_DIR):
+    if not run(["git", "add", "netdisk_share.html", "sitemap_netdisk.xml"], cwd=SITE_DIR):
         return False
     # 无变化时 commit 会失败，属正常
     committed = run(["git", "commit", "-m",
