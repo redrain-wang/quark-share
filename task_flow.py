@@ -302,6 +302,16 @@ async def process_task(api: QuarkAPI, folder_fid: str, task: dict, share_enabled
     # -1. 已有转存 fid → 绝不重复转存
     saved_fid = (task.get("quark_fid") or "").split(",")[0] if task.get("quark_fid") else ""
     if saved_fid:
+        # fid 指向的文件可能已被网盘清理，不存在则清掉走正常转存（防死循环）
+        try:
+            files = await api.list_folder_files(folder_fid)
+            if not any(f["fid"] == saved_fid for f in files):
+                logger.info(f"任务[{task_id}] {name}: fid 文件已不存在，清除 fid 走正常流程")
+                await update_task(task_id, quark_fid="", status=0)
+                return
+        except Exception as e:
+            logger.warning(f"任务[{task_id}] fid 校验异常: {e}")
+    if saved_fid:
         if not share_enabled:
             # 只转存模式：文件已在网盘，无需任何操作，等配额恢复
             logger.info(f"任务[{task_id}] {name}: 已有转存 fid，本轮跳过（等分享配额）")
