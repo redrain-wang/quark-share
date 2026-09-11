@@ -71,6 +71,30 @@ PANSOU_CONCURRENCY = 5
 PANSOU_RESULT_TYPE = "merge"
 
 # ============================================================
+#  多账号配置
+#  每个账号独立 Chrome 配置 + 独立调试端口（登录态隔离）
+#  账号1沿用既有路径，避免丢失已登录会话
+# ============================================================
+def get_account_profile(account_id: int) -> dict:
+    """按账号 ID 返回 Chrome 配置/端口/Cookie 文件路径"""
+    if account_id == 1:
+        return {
+            "profile_dir": "/tmp/chrome_cdp_profile",
+            "cdp_port": 9223,
+            "cookie_file": BROWSER_DATA_DIR / "quark_1_cookies.json",
+        }
+    return {
+        "profile_dir": f"/tmp/chrome_cdp_profile_{account_id}",
+        "cdp_port": 9222 + account_id,  # 账号2 → 9224
+        "cookie_file": BROWSER_DATA_DIR / f"quark_{account_id}_cookies.json",
+    }
+
+
+def account_cdp_url(account_id: int) -> str:
+    return f"http://127.0.0.1:{get_account_profile(account_id)['cdp_port']}"
+
+
+# ============================================================
 #  转存目标
 # ============================================================
 # 夸克网盘中接收转存内容的文件夹名

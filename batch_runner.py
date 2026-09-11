@@ -45,11 +45,46 @@ TASKS_PER_ROUND = 15
 ROUND_COOLDOWN = (600, 900)    # 10-15 分钟（自适应调节可倍增）
 IDLE_COOLDOWN = 3600
 
-FOLDER_FID = "1cba61a854d847ddaffe74db44a9fd24"
+FOLDER_FID = "1cba61a854d847ddaffe74db44a9fd24"  # 账号1历史文件夹
+FOLDER_NAME = "easysvip.com"
 COOKIE_FILE = Path(__file__).parent / "browser_data" / "quark_1_cookies.json"
 
 
-async def probe_and_complete_one(cookie) -> bool | None:
+async def get_active_accounts() -> list[dict]:
+    """取可用的夸克账号"""
+    conn = await aiomysql.connect(
+        host=DB_CONFIG["host"], port=DB_CONFIG["port"],
+        user=DB_CONFIG["user"], password=DB_CONFIG["password"],
+        db=DB_CONFIG["database"], charset="utf8mb4", autocommit=True,
+    )
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                "SELECT id, phone FROM cloud_accounts WHERE disk_type='quark' AND status=1 ORDER BY id")
+            return await cur.fetchall()
+    finally:
+        conn.close()
+
+
+async def account_free_space_gb(account_id: int) -> float | None:
+    """查账号剩余空间（GB）；Cookie 失效返回 None"""
+    from config import get_account_profile
+    try:
+        cookie = load_cookie_header(get_account_profile(account_id)["cookie_file"])
+        api = QuarkAPI(cookie)
+        try:
+            d = (await api._request("GET", "https://drive-member-h.quark.cn/1/clouddrive/member",
+                                    params={"pr": "ucpro", "fr": "pc"})).get("data", {})
+            use = d.get("use_capacity", 0) or 0
+            total = d.get("total_capacity", 1) or 1
+            return (total - use) / 1024 ** 3
+        finally:
+            await api.close()
+    except Exception:
+        return None
+
+
+async def probe_and_complete_one(cookie, account_id: int = 1) -> bool | None:
     """
     分享探针：取一条"已转存未分享"的任务（status 2/5，有 quark_fid），试建分享。
     成功 → 完成该任务入库（status=3 + 写 mac_vod_netdisk），返回 True
@@ -78,15 +113,16 @@ async def probe_and_complete_one(cookie) -> bool | None:
     fid = task["quark_fid"].split(",")[0]
     api = QuarkAPI(cookie)
     try:
-        # fid → 网盘中的精确显示名
-        files = await api.list_folder_files(FOLDER_FID)
+        # fid → 网盘中的精确显示名（按账号解析其转存文件夹）
+        folder_fid = await api.get_or_create_folder(FOLDER_NAME)
+        files = await api.list_folder_files(folder_fid)
         name = next((f["file_name"] for f in files if f["fid"] == fid), None)
         if not name:
             logger.warning(f"探针: fid {fid[:12]} 未找到文件名")
             return False
         # 分享探针走真 Chrome 可信UI（WAF 只放行真实输入管线事件）
         try:
-            share = await browser_share.create_share_via_trusted_ui([name])
+            share = await browser_share.create_share_via_trusted_ui([name], account_id=account_id)
         except Exception as e:
             logger.info(f"探针失败({str(e)[:60]}) → 本轮只转存")
             return False
@@ -144,8 +180,8 @@ async def main():
             except Exception as e:
                 logger.warning(f"审计巡检异常: {e}")
 
-            # 分享探针
-            probe = await probe_and_complete_one(cookie)
+            # 分享探针（用账号1探测分享能力；账号1空间不足不影响分享测试）
+            probe = await probe_and_complete_one(cookie, account_id=1)
             share_enabled = probe is not False  # False = 配额受限
             if probe is True:
                 logger.info(f"[第{round_no}轮] 分享配额正常（探针完成1条积压）")
@@ -160,8 +196,30 @@ async def main():
                 await asyncio.sleep(IDLE_COOLDOWN)
                 continue
 
-            logger.info(f"[第{round_no}轮] 处理 {len(tasks)} 条任务 (share_enabled={share_enabled})")
-            await run(limit=TASKS_PER_ROUND, share_enabled=share_enabled)
+            # 账号选择：优先剩余空间大的可用账号（空间不足的跳过）
+            accounts = await get_active_accounts()
+            usable = []
+            for acc in accounts:
+                free = await account_free_space_gb(acc["id"])
+                if free is None:
+                    logger.warning(f"[账号{acc['id']}] Cookie 失效或无响应，跳过")
+                    continue
+                logger.info(f"[账号{acc['id']}] 剩余空间 {free:.1f}GB")
+                if free > 5:  # 留 5GB 余量
+                    usable.append((free, acc["id"]))
+            usable.sort(reverse=True)
+            if not usable:
+                logger.error("❌ 所有账号空间不足或不可用，暂停本轮（等待扩容/清理）")
+                await asyncio.sleep(1800)
+                continue
+
+            # 每轮处理：优先用剩余空间最大的账号
+            account_id = usable[0][1]
+            if len(usable) > 1:
+                logger.info(f"可用账号空间: {[(a, round(f,1)) for f, a in usable]} → 选用账号{account_id}")
+
+            logger.info(f"[第{round_no}轮] 处理 {len(tasks)} 条任务 (账号{account_id}, share_enabled={share_enabled})")
+            await run(limit=TASKS_PER_ROUND, share_enabled=share_enabled, account_id=account_id)
 
             remaining = await get_pending_tasks(limit=100000)
             logger.info(f"[第{round_no}轮] 完成，剩余 {len(remaining)} 条")

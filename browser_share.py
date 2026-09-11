@@ -20,9 +20,11 @@ import time
 from pathlib import Path
 
 from playwright.async_api import async_playwright
+from config import get_account_profile, account_cdp_url
 
 logger = logging.getLogger(__name__)
 
+# 默认账号（兼容旧调用），实际按 account_id 解析
 CDP_URL = "http://127.0.0.1:9223"
 CDP_PROFILE_DIR = "/tmp/chrome_cdp_profile"
 DRIVE_URL = "https://pan.quark.cn/list#/list/all"
@@ -33,33 +35,36 @@ class BrowserShareError(Exception):
     pass
 
 
-def is_cdp_alive(timeout: float = 3) -> bool:
+def is_cdp_alive(port: int = 9223, timeout: float = 3) -> bool:
     try:
         import urllib.request
-        with urllib.request.urlopen(f"{CDP_URL}/json/version", timeout=timeout) as r:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=timeout) as r:
             return r.status == 200
     except Exception:
         return False
 
 
-def kill_cdp_chrome():
-    """强杀 CDP Chrome 实例（冻结/无响应时用）"""
+def kill_cdp_chrome(account_id: int = 1):
+    """强杀指定账号的 CDP Chrome 实例"""
     import subprocess
+    prof = get_account_profile(account_id)
     subprocess.run(
-        ["pkill", "-9", "-f", f"user-data-dir={CDP_PROFILE_DIR}"],
+        ["pkill", "-9", "-f", f"user-data-dir={prof['profile_dir']}"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     time.sleep(3)
 
 
-def ensure_cdp_chrome():
-    """确保 CDP Chrome 实例运行（不存在则复制登录配置启动）"""
-    if is_cdp_alive():
+def ensure_cdp_chrome(account_id: int = 1):
+    """确保指定账号的 CDP Chrome 实例运行"""
+    prof = get_account_profile(account_id)
+    if is_cdp_alive(port=prof["cdp_port"]):
         return True
-    logger.info("[BrowserShare] CDP Chrome 未运行，启动中...")
-    profile = Path(CDP_PROFILE_DIR)
+    logger.info(f"[BrowserShare] 账号{account_id} CDP Chrome 未运行，启动中...")
+    profile = Path(prof["profile_dir"])
     profile.mkdir(parents=True, exist_ok=True)
-    if not (profile / "Default").exists():
+    # 仅账号1首次从主 Chrome 复制登录态；其他账号用全新配置（避免串号）
+    if account_id == 1 and not (profile / "Default").exists():
         src = Path.home() / "Library/Application Support/Google/Chrome"
         try:
             subprocess.run(["cp", "-r", str(src / "Default"), str(profile / "Default")],
@@ -70,14 +75,14 @@ def ensure_cdp_chrome():
             logger.warning(f"[BrowserShare] 复制配置失败: {e}")
     subprocess.Popen(
         ["open", "-na", "Google Chrome", "--args",
-         f"--user-data-dir={CDP_PROFILE_DIR}",
-         "--remote-debugging-port=9223", "--no-first-run"],
+         f"--user-data-dir={prof['profile_dir']}",
+         f"--remote-debugging-port={prof['cdp_port']}", "--no-first-run"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     for _ in range(15):
         time.sleep(2)
-        if is_cdp_alive():
-            logger.info("[BrowserShare] CDP Chrome 就绪")
+        if is_cdp_alive(port=prof["cdp_port"]):
+            logger.info(f"[BrowserShare] 账号{account_id} CDP Chrome 就绪")
             return True
     raise BrowserShareError("CDP Chrome 启动超时")
 
@@ -250,7 +255,7 @@ async def _read_share_link(page, timeout_s: float = 12):
 #  主入口
 # ====================================================================
 
-async def create_share_via_trusted_ui(file_names: list[str]) -> dict:
+async def create_share_via_trusted_ui(file_names: list[str], account_id: int = 1) -> dict:
     """
     通过可信鼠标事件驱动夸克 UI，为指定文件（可多个，一次分享）创建链接。
 
@@ -265,7 +270,8 @@ async def create_share_via_trusted_ui(file_names: list[str]) -> dict:
     if not file_names:
         raise BrowserShareError("文件名列表为空")
 
-    ensure_cdp_chrome()
+    ensure_cdp_chrome(account_id)
+    cdp_url = account_cdp_url(account_id)
     pw = await async_playwright().start()
     start = time.time()
 
@@ -275,14 +281,14 @@ async def create_share_via_trusted_ui(file_names: list[str]) -> dict:
         for attempt in range(2):
             try:
                 browser = await asyncio.wait_for(
-                    pw.chromium.connect_over_cdp(CDP_URL), timeout=45
+                    pw.chromium.connect_over_cdp(cdp_url), timeout=45
                 )
                 break
             except (asyncio.TimeoutError, Exception) as e:
                 if attempt == 0:
                     logger.warning(f"[BrowserShare] CDP 连接失败({str(e)[:60]})，重启 Chrome 重试...")
-                    kill_cdp_chrome()
-                    ensure_cdp_chrome()
+                    kill_cdp_chrome(account_id)
+                    ensure_cdp_chrome(account_id)
                 else:
                     raise BrowserShareError(f"CDP 连接失败: {e}")
         context = browser.contexts[0]
@@ -382,12 +388,12 @@ async def create_share_via_trusted_ui(file_names: list[str]) -> dict:
         await pw.stop()
 
 
-async def check_login_via_browser() -> bool:
-    """检查 CDP Chrome 的登录状态"""
-    ensure_cdp_chrome()
+async def check_login_via_browser(account_id: int = 1) -> bool:
+    """检查指定账号 CDP Chrome 的登录状态"""
+    ensure_cdp_chrome(account_id)
     pw = await async_playwright().start()
     try:
-        browser = await pw.chromium.connect_over_cdp(CDP_URL)
+        browser = await pw.chromium.connect_over_cdp(account_cdp_url(account_id))
         context = browser.contexts[0]
         page = await context.new_page()
         await page.goto(DRIVE_URL, wait_until="domcontentloaded", timeout=30000)

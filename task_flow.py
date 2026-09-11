@@ -314,7 +314,8 @@ async def _rank_links_by_size(api: QuarkAPI, links: list, max_gb: float = 15.0, 
     return ok
 
 
-async def _create_share_via_browser(api: QuarkAPI, folder_fid: str, fids: list[str], name: str) -> dict | None:
+async def _create_share_via_browser(api: QuarkAPI, folder_fid: str, fids: list[str], name: str,
+                                    account_id: int = 1) -> dict | None:
     """
     通过真 Chrome 的可信鼠标事件（UI 全流程）创建分享。
     fid → 网盘中文件的精确显示名（含混淆字符）→ 拟人点击 UI 创建。
@@ -333,7 +334,7 @@ async def _create_share_via_browser(api: QuarkAPI, folder_fid: str, fids: list[s
         if not names:
             logger.warning(f"[浏览器分享] 未找到 {fids} 对应的文件名")
             return None
-        return await browser_share.create_share_via_trusted_ui(names)
+        return await browser_share.create_share_via_trusted_ui(names, account_id=account_id)
     except Exception as e:
         logger.warning(f"[浏览器分享] 失败({e})，尝试从分享列表恢复...")
         await asyncio.sleep(2)
@@ -342,7 +343,8 @@ async def _create_share_via_browser(api: QuarkAPI, folder_fid: str, fids: list[s
                 or await api.find_share_by_name(name))
 
 
-async def process_task(api: QuarkAPI, folder_fid: str, task: dict, share_enabled: bool = True):
+async def process_task(api: QuarkAPI, folder_fid: str, task: dict, share_enabled: bool = True,
+                       account_id: int = 1):
     """
     处理单个任务：
     -1. 已有转存 fid（quark_fid）→ 直接补分享，绝不重复转存
@@ -378,7 +380,7 @@ async def process_task(api: QuarkAPI, folder_fid: str, task: dict, share_enabled
             logger.info(f"任务[{task_id}] {name}: 已有转存 fid，本轮跳过（等分享配额）")
             return
         logger.info(f"任务[{task_id}] {name}: 已有转存 fid，直接补分享（真浏览器）")
-        share = await _create_share_via_browser(api, folder_fid, [saved_fid], name)
+        share = await _create_share_via_browser(api, folder_fid, [saved_fid], name, account_id)
         if share:
             await _mark_success(task_id, name, share["url"], share.get("passcode", ""),
                                 try_count=try_count)
@@ -403,7 +405,7 @@ async def process_task(api: QuarkAPI, folder_fid: str, task: dict, share_enabled
                                 try_count=try_count)
             return
         # 没有分享 → 给已有文件补一个分享（真浏览器）
-        share = await _create_share_via_browser(api, folder_fid, [existing["fid"]], existing_name)
+        share = await _create_share_via_browser(api, folder_fid, [existing["fid"]], existing_name, account_id)
         if share:
             await _mark_success(task_id, name, share["url"], share.get("passcode", ""),
                                 try_count=try_count)
@@ -478,7 +480,7 @@ async def process_task(api: QuarkAPI, folder_fid: str, task: dict, share_enabled
                 return
 
             # 分享环节（真 Chrome）
-            share = await _create_share_via_browser(api, folder_fid, saved_fids, name)
+            share = await _create_share_via_browser(api, folder_fid, saved_fids, name, account_id)
             if share:
                 await _mark_success(
                     task_id, name, share["url"], share.get("passcode", ""),
@@ -583,19 +585,21 @@ async def audit_and_reset_completed():
 #  主流程
 # ================================================================
 
-async def run(limit: int = 100, share_enabled: bool = True):
-    cookie = load_cookie_header(COOKIE_FILE)
+async def run(limit: int = 100, share_enabled: bool = True, account_id: int = 1):
+    """执行一轮任务。account_id 指定使用哪个网盘账号（独立 Cookie / Chrome / 文件夹）"""
+    from config import get_account_profile
+    cookie_file = get_account_profile(account_id)["cookie_file"]
+    cookie = load_cookie_header(cookie_file)
 
-    # 启动检查（独立短会话，避免长会话累积触发 WAF）
     boot = QuarkAPI(cookie)
     try:
         if not await boot.check_login():
-            logger.error("夸克 Cookie 已失效，请重新提取！")
+            logger.error(f"账号{account_id} Cookie 已失效，请重新登录！")
             return
         folder_fid = await boot.get_or_create_folder(FOLDER_NAME)
     finally:
         await boot.close()
-    logger.info(f"转存目标文件夹: {FOLDER_NAME} (fid={folder_fid})")
+    logger.info(f"[账号{account_id}] 转存目标文件夹: {FOLDER_NAME} (fid={folder_fid})")
 
     tasks = await get_pending_tasks(limit)
     logger.info(f"待处理任务: {len(tasks)} 条")
@@ -605,7 +609,7 @@ async def run(limit: int = 100, share_enabled: bool = True):
         # 每个任务使用全新会话（手动验证：新会话的成功率远高于长会话）
         api = QuarkAPI(cookie)
         try:
-            await process_task(api, folder_fid, task, share_enabled=share_enabled)
+            await process_task(api, folder_fid, task, share_enabled=share_enabled, account_id=account_id)
         except Exception as e:
             logger.error(f"任务处理异常: {e}")
         finally:
