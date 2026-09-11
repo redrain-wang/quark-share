@@ -36,6 +36,8 @@ FOLDER_NAME = "easysvip.com"
 
 # 每部电影最多尝试的链接数（失效就换下一个）
 MAX_LINK_TRY = 5
+# 单次转存体积上限（GB），超过则优先换其他链接
+MAX_TRANSFER_GB = 15.0
 # 任务之间的间隔（秒），保守防风控（夸克 WAF 对高频请求会 401 拦截）
 TASK_INTERVAL = (60, 120)
 # 每条链接尝试之间的间隔（秒）
@@ -253,6 +255,65 @@ async def _sync_rows_to_online(vod_ids: list[int], my_url: str, my_pwd: str):
         oconn.close()
 
 
+async def _estimate_share_size_gb(api: QuarkAPI, share_url: str, passcode: str = "") -> float | None:
+    """
+    预估分享内容的总体积（GB）。取分享顶层文件大小；若顶层是文件夹则下钻一层。
+    失败返回 None（不阻塞流程）。
+    """
+    m = re.search(r"pan\.quark\.cn/s/([a-zA-Z0-9]+)", share_url)
+    if not m:
+        return None
+    try:
+        pwd_id = m.group(1)
+        stoken = await api.get_stoken(pwd_id, passcode)
+
+        async def _sum(pdir_fid: str, depth: int = 0) -> float:
+            d = await api._request(
+                "GET", "https://drive-pc.quark.cn/1/clouddrive/share/sharepage/detail",
+                params={"pr": "ucpro", "fr": "pc", "pwd_id": pwd_id, "stoken": stoken,
+                        "pdir_fid": pdir_fid, "_page": "1", "_size": "200",
+                        "_fetch_total": "0"},
+            )
+            total = 0.0
+            for it in d.get("data", {}).get("list", []):
+                if it.get("dir"):
+                    if depth < 1:
+                        total += await _sum(it["fid"], depth + 1)
+                else:
+                    total += (it.get("size", 0) or 0)
+            return total
+
+        total_bytes = await _sum("0")
+        return total_bytes / 1024 ** 3
+    except Exception:
+        return None
+
+
+async def _rank_links_by_size(api: QuarkAPI, links: list, max_gb: float = 15.0, probe: int = 6) -> list:
+    """
+    按预估体积给候选链接排序：小体积优先、4K 提示靠后、超限的跳过。
+    体积未知的按原顺序排在中间。
+    """
+    scored = []
+    for i, link in enumerate(links[:probe]):
+        size = await _estimate_share_size_gb(api, link.url, link.password)
+        note = link.note or ""
+        hint_4k = any(k in note for k in ("4K", "2160", "UHD", "HDR", "蓝光", "原盘"))
+        over = size is not None and size > max_gb
+        scored.append({"link": link, "size": size, "over": over,
+                       "hint4k": hint_4k, "idx": i})
+        logger.info(f"  [选链] {link.url[-12:]} 预估 {('%.1fGB' % size) if size is not None else '未知'}"
+                    f"{' ⚠️超限' if over else ''}{' [4K]' if hint_4k else ''}")
+    scored.sort(key=lambda x: (
+        x["over"], x["hint4k"],
+        x["size"] if x["size"] is not None else 999, x["idx"],
+    ))
+    ok = [s["link"] for s in scored if not s["over"]]
+    if not ok:  # 全超限时退回原列表（避免无片可转）
+        ok = [s["link"] for s in scored]
+    return ok
+
+
 async def _create_share_via_browser(api: QuarkAPI, folder_fid: str, fids: list[str], name: str) -> dict | None:
     """
     通过真 Chrome 的可信鼠标事件（UI 全流程）创建分享。
@@ -363,6 +424,12 @@ async def process_task(api: QuarkAPI, folder_fid: str, task: dict, share_enabled
         return
 
     logger.info(f"任务[{task_id}] {name}: 搜到 {len(result.links)} 条链接")
+
+    # 体积感知选链：预估各候选体积，小体积优先、跳过超大合集（省网盘空间）
+    try:
+        result.links = await _rank_links_by_size(api, result.links, max_gb=MAX_TRANSFER_GB)
+    except Exception as e:
+        logger.warning(f"任务[{task_id}] 选链排序异常（按原顺序）: {e}")
 
     # 1.5 相关性过滤：剔除 PanSou 返回的不相关结果
     relevant = [l for l in result.links if _is_relevant(name, l.note)]

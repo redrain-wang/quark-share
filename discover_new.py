@@ -25,6 +25,9 @@ from config import DB_CONFIG, ONLINE_DB
 STATE_FILE = Path(__file__).parent / ".discover_state"
 JUNK_CLASS = "纪录|记录|体育|篮球|足球|游戏|电竞|演唱会|综艺|访谈"
 JUNK_NAME = "实机赏析|预告片|花絮|解说|reaction|试玩|直播回放"
+# 剧集过滤：名称含"第X季"或备注含"第N集/全N集/更新至N集"的排除（剧集体积大且更新频繁）
+SERIES_NAME = "第[一二三四五六七八九十0-9]+季"
+SERIES_REMARKS = "(更新至|全|第)[0-9]+集"
 
 
 def clean_name(s: str) -> str:
@@ -67,6 +70,8 @@ def main(force: bool = False):
         WHERE v.vod_year IN ('2025', '2026') AND v.type_id_1 = 1
           AND (v.vod_class IS NULL OR v.vod_class NOT REGEXP '{JUNK_CLASS}')
           AND v.vod_name NOT REGEXP '{JUNK_NAME}'
+          AND v.vod_name NOT REGEXP '{SERIES_NAME}'
+          AND (v.vod_remarks IS NULL OR v.vod_remarks NOT REGEXP '{SERIES_REMARKS}')
         GROUP BY v.vod_name
     """)
     movies = ocur.fetchall()
