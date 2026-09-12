@@ -41,8 +41,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("runner")
 
-TASKS_PER_ROUND = 15
-ROUND_COOLDOWN = (600, 900)    # 10-15 分钟（自适应调节可倍增）
+TASKS_PER_ROUND = 10
+ROUND_COOLDOWN = (1800, 2700)   # 30-45 分钟（悠着点，防风控）
 IDLE_COOLDOWN = 3600
 
 FOLDER_FID = "1cba61a854d847ddaffe74db44a9fd24"  # 账号1历史文件夹
